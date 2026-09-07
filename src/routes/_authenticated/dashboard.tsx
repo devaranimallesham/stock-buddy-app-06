@@ -27,7 +27,7 @@ import {
   valueOf,
 } from "@/lib/portfolio";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Stock Portfolio Tracker — Holdings, Charts & Exports" },
