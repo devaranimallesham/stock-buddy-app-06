@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Download, FileText, LineChart, TriangleAlert } from "lucide-react";
+import { Download, FileText, LineChart, LogOut, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddStockForm } from "@/components/portfolio/AddStockForm";
 import { PortfolioTable } from "@/components/portfolio/PortfolioTable";
@@ -51,22 +52,35 @@ function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string>("");
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("value-desc");
 
   useEffect(() => {
-    setHoldings(mergeHoldings(loadJSON<Holding[]>(HOLDINGS_KEY, [])));
-    setTransactions(loadJSON<Transaction[]>(TX_KEY, []));
-    setHydrated(true);
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      setUserId(data.user.id);
+      setEmail(data.user.email ?? "");
+      setHoldings(mergeHoldings(loadJSON<Holding[]>(`${HOLDINGS_KEY}.${data.user.id}`, [])));
+      setTransactions(loadJSON<Transaction[]>(`${TX_KEY}.${data.user.id}`, []));
+      setHydrated(true);
+    });
   }, []);
 
   useEffect(() => {
-    if (hydrated) saveJSON(HOLDINGS_KEY, holdings);
-  }, [holdings, hydrated]);
+    if (hydrated && userId) saveJSON(`${HOLDINGS_KEY}.${userId}`, holdings);
+  }, [holdings, hydrated, userId]);
 
   useEffect(() => {
-    if (hydrated) saveJSON(TX_KEY, transactions);
-  }, [transactions, hydrated]);
+    if (hydrated && userId) saveJSON(`${TX_KEY}.${userId}`, transactions);
+  }, [transactions, hydrated, userId]);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  };
 
   const logTx = (kind: TxKind, symbol: string, quantity: number) => {
     const price = priceOf(symbol);
@@ -159,7 +173,7 @@ function Dashboard() {
                 Stock Portfolio Tracker
               </h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
-                Investment = Stock Price × Quantity
+                {email || "Investment = Stock Price × Quantity"}
               </p>
             </div>
           </div>
@@ -173,6 +187,9 @@ function Dashboard() {
               <span className="hidden sm:inline">TXT</span>
             </Button>
             <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out">
+              <LogOut className="size-4" />
+            </Button>
           </div>
         </div>
       </header>
